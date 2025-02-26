@@ -1,0 +1,1305 @@
+ --将海龟平放，在海龟面朝的地方放置箱子用来装矿物，海龟右侧放一个箱子用来装 卸货白名单以外的物品，然后在海龟的gui界面输入 "a5 a b"
+ --a,b均为数字，a代表挖掘平面的边长，b代表向下挖掘的深度限制
+ --若起始点往下没有两格方块的空间，则海龟不会进行挖掘
+
+
+ if not turtle then
+     printError("Requires a Turtle")
+     return
+ end
+
+local tArgs = { ... }
+if #tArgs < 1 then
+    local programName = arg[0] or fs.getName(shell.getRunningProgram())
+    print( "Usage: "..programName.." <diameter>[limit][goDownHeight][area]" )
+    return
+end
+
+
+-- Mine in a quarry pattern until we hit something we can't dig
+local size = tonumber( tArgs[1] ) --挖掘size*size*3个方块的长方体，然后下降3格继续这个过程
+if not size or size < 1 then
+    print( "Excavate diameter must be positive" )
+    return
+end
+local goDownHeight = 2      --a9
+if #tArgs > 1 then
+    goDownHeight = tonumber( tArgs[2] )
+    if not goDownHeight or goDownHeight < 2 then
+        print( "goDownHeight must >=2" )
+        return
+    end
+end
+local limit = 10000
+if #tArgs > 2 then
+    limit = tonumber( tArgs[3] ) --向下挖掘的深度限制，挖掘的深度不会小于这个值(除非遇到基岩，如果遇到基岩则实际挖掘范围为基岩层以上的所有方块)，可能挖掘的最大值为limit+2
+    if not limit or limit < goDownHeight then
+        print( "Limit must >= goDownHeight" )
+        return
+    end
+end
+local area = nil
+if #tArgs > 3 then
+    area = tArgs[4] --向下挖掘的深度限制，挖掘的深度不会小于这个值(除非遇到基岩，如果遇到基岩则实际挖掘范围为基岩层以上的所有方块)，可能挖掘的最大值为limit+2
+    if #area>3 or #area<2 then
+        print( "The \"area\" parameter cannot be longer than 3 characters and cannot be less than 2 characters " )
+        return
+    else
+        local p1 = tonumber(string.sub(area,1,-2))
+        if not p1 or p1>16 then
+            print("The parameter format is <1-9><a-b> ,e.g. \"1a\"")
+            return
+        end
+        if p1>1 and size<(math.floor(math.min(p1,14)/5)+2)*4 or p1==1 and size<4 then
+            print( "If area is specified, the diameter cannot be too small" )
+            return
+        end
+        local p2 = string.sub(area,-1)
+        if p2~="a" and p2~="b" and p2~="c" and p2~="d" then
+            print("The parameter format is <1-N><a-b> ,e.g. \"1a\"")
+            return
+        end
+    end
+end
+
+if not area then
+    goDownHeight = goDownHeight - 1
+    xPos,zPos = 0,0
+    function goback(mode)
+        if mode then
+            goTo( 0,1,0,0,1 )
+        else
+            goTo( 0,1,0,0,1 )
+            goTo( 0,0,0,0,1 )
+        end
+    end 
+elseif area=="1a" then
+    goDownHeight = goDownHeight - 2
+    xPos,zPos = 0,0
+    function goback(mode)
+        if mode then
+            goTo( 0,2,0,0,1 )
+        else
+            goTo( 0,2,0,0,1 )
+            goTo( 0,0,0,0,1 )
+        end
+    end
+elseif area=="1b" then
+    goDownHeight = goDownHeight - 1
+    xPos,zPos = 0,2
+    function goback(mode)
+        if mode then
+            goTo( 0,1,2,0,1 )
+            goTo( 0,1,size,0,1 )
+        else
+            goTo( 0,1,size,0,1 )
+            goTo( 0,1,2,0,1 )
+            goTo( 0,0,2,0,1 )
+        end
+    end
+elseif area=="1c" then
+    xPos,zPos = 3,2
+    function goback(mode)
+        if mode then
+            goTo( 5,0,2,0,1 )
+            goTo( 5,0,12,0,1 )
+            goTo( size,0,size,0,1 )
+        else
+            goTo( 5,0,12,0,1 )
+            goTo( 5,0,2,0,1 )
+            goTo( 3,0,2,0,1 )
+        end
+    end
+elseif area=="1d" then
+    goDownHeight = goDownHeight - 1
+    xPos,zPos = 3,0
+    function goback(mode)
+        if mode then
+            goTo( 3,1,0,0,1 )
+            goTo( size,1,0,0,1 )
+        else
+            goTo( size,1,0,0,1 )
+            goTo( 3,1,0,0,1 )
+            goTo( 3,0,0,0,1 )
+        end
+    end
+elseif area=="2a" then
+    xPos,zPos = 0,4
+    function goback(mode)
+        if mode then
+            goTo( 0,-1,4,0,1 )
+            goTo( 0,-1,2*size,0,1 )
+            goTo( 0,0,2*size,0,1 )
+        else
+            goTo( 0,0,2*size,0,1 )
+            goTo( 0,-1,2*size,0,1 )
+            goTo( 0,-1,4,0,1 )
+            goTo( 0,0,4,0,1 )
+        end
+    end
+elseif area=="2b" then
+    xPos,zPos = 0,6
+    function goback(mode)
+        if mode then
+            goTo( 1,0,6,0,1 )
+            goTo( 1,-2,6,0,1 )
+            goTo( 0,-2,6,0,1 )
+            goTo( 0,-2,3*size,0,1 )
+            goTo( 0,0,3*size,0,1 )
+        else
+            goTo( 0,0,3*size,0,1 )
+            goTo( 0,-2,3*size,0,1 )
+            goTo( 0,-2,6,0,1 )
+            goTo( 1,-2,6,0,1 )
+            goTo( 1,0,6,0,1 )
+            goTo( 0,0,6,0,1 )
+        end
+    end
+elseif area=="2c" then
+    xPos,zPos = 3,6
+    function goback(mode)
+        if mode then
+            goTo( 3,-1,6,0,1 )
+            goTo( 3,-1,3*size,0,1 )
+            goTo( size,-1,3*size,0,1 )
+            goTo( size,0,3*size,0,1 )
+        else
+            goTo( size,0,3*size,0,1 )
+            goTo( size,-1,3*size,0,1 )
+            goTo( 3,-1,3*size,0,1 )
+            goTo( 3,-1,6,0,1 )
+            goTo( 3,0,6,0,1 )
+        end
+    end
+elseif area=="2d" then
+    xPos,zPos = 3,4
+    function goback(mode)
+        if mode then
+            goTo( 3,-2,4,0,1 )
+            goTo( 3,-2,2*size,0,1 )
+            goTo( size,-2,2*size,0,1 )
+            goTo( size,0,2*size,0,1 )
+        else
+            goTo( size,0,2*size,0,1 )
+            goTo( size,-2,2*size,0,1 )
+            goTo( 3,-2,2*size,0,1 )
+            goTo( 3,-2,4,0,1 )
+            goTo( 3,0,4,0,1 )
+        end
+    end
+elseif area=="3a" then
+    xPos,zPos = 6,4
+    function goback(mode)
+        if mode then
+            goTo( 6,-4,4,0,1 )
+            goTo( 6,-4,2*size,0,1 )
+            goTo( 2*size,-4,2*size,0,1 )
+            goTo( 2*size,0,2*size,0,1 )
+        else
+            goTo( 2*size,0,2*size,0,1 )
+            goTo( 2*size,-4,2*size,0,1 )
+            goTo( 6,-4,2*size,0,1 )
+            goTo( 6,-4,4,0,1 )
+            goTo( 6,0,4,0,1 )
+        end
+    end
+elseif area=="3b" then
+    xPos,zPos = 6,6
+    function goback(mode)
+        if mode then
+            goTo( 6,-3,6,0,1 )
+            goTo( 6,-3,3*size,0,1 )
+            goTo( 2*size,-3,3*size,0,1 )
+            goTo( 2*size,0,3*size,0,1 )
+        else
+            goTo( 2*size,0,3*size,0,1 )
+            goTo( 2*size,-3,3*size,0,1 )
+            goTo( 6,-3,3*size,0,1 )
+            goTo( 6,-3,6,0,1 )
+            goTo( 6,0,6,0,1 )
+        end
+    end
+elseif area=="3c" then
+    xPos,zPos = 9,6
+    function goback(mode)
+        if mode then
+            goTo( 9,-4,6,0,1 )
+            goTo( 3*size,-4,6,0,1 )
+            goTo( 3*size,-4,3*size,0,1 )
+            goTo( 3*size,0,3*size,0,1 )
+        else
+            goTo( 3*size,0,3*size,0,1 )
+            goTo( 3*size,-4,3*size,0,1 )
+            goTo( 3*size,-4,6,0,1 )
+            goTo( 9,-4,6,0,1 )
+            goTo( 9,0,6,0,1 )
+        end
+    end
+elseif area=="3d" then
+    xPos,zPos = 9,4
+    function goback(mode)
+        if mode then
+            goTo( 9,-3,4,0,1 )
+            goTo( 3*size,-3,4,0,1 )
+            goTo( 3*size,-3,2*size,0,1 )
+            goTo( 3*size,0,2*size,0,1 )
+        else
+            goTo( 3*size,0,2*size,0,1 )
+            goTo( 3*size,-3,2*size,0,1 )
+            goTo( 3*size,-3,4,0,1 )
+            goTo( 9,-3,4,0,1 )
+            goTo( 9,0,4,0,1 )
+        end
+    end
+elseif area=="4a" then
+    xPos,zPos = 6,0
+    function goback(mode)
+        if mode then
+            goTo( 6,-1,0,0,1 )
+            goTo( 2*size,-1,0,0,1 )
+            goTo( 2*size,0,0,0,1 )
+        else
+            goTo( 2*size,0,0,0,1 )
+            goTo( 2*size,-1,0,0,1 )
+            goTo( 6,-1,0,0,1 )
+            goTo( 6,0,0,0,1 )
+        end
+    end
+elseif area=="4b" then
+    xPos,zPos = 6,2
+    function goback(mode)
+        if mode then
+            goTo( 6,-2,2,0,1 )
+            goTo( 2*size,-2,2,0,1 )
+            goTo( 2*size,-2,size,0,1 )
+            goTo( 2*size,0,size,0,1 )
+        else
+            goTo( 2*size,0,size,0,1 )
+            goTo( 2*size,-2,size,0,1 )
+            goTo( 2*size,-2,2,0,1 )
+            goTo( 6,-2,2,0,1 )
+            goTo( 6,0,2,0,1 )
+        end
+    end
+elseif area=="4c" then
+    xPos,zPos = 9,2
+    function goback(mode)
+        if mode then
+            goTo( 9,-1,2,0,1 )
+            goTo( 3*size,-1,2,0,1 )
+            goTo( 3*size,-1,size,0,1 )
+            goTo( 3*size,0,size,0,1 )
+        else
+            goTo( 3*size,0,size,0,1 )
+            goTo( 3*size,-1,size,0,1 )
+            goTo( 3*size,-1,2,0,1 )
+            goTo( 9,-1,2,0,1 )
+            goTo( 9,0,2,0,1 )
+        end
+    end
+elseif area=="4d" then
+    xPos,zPos = 9,0
+    function goback(mode)
+        if mode then
+            goTo( 11,0,0,0,1 )
+            goTo( 11,0,1,0,1 )
+            goTo( 11,-2,1,0,1 )
+            goTo( 11,-2,0,0,1 )
+            goTo( 3*size,-2,0,0,1 )
+            goTo( 3*size,0,0,0,1 )
+        else
+            goTo( 3*size,0,0,0,1 )
+            goTo( 3*size,-2,0,0,1 )
+            goTo( 11,-2,0,0,1 )
+            goTo( 11,-2,1,0,1 )
+            goTo( 11,0,1,0,1 )
+            goTo( 11,0,0,0,1 )
+            goTo( 9,0,0,0,1 )
+        end
+    end
+elseif area=="5a" then
+    xPos,zPos = 0,8
+    function goback(mode)
+        if mode then
+            goTo( 1,0,8,0,1 )
+            goTo( 1,-5,8,0,1 )
+            goTo( 0,-5,8,0,1 )
+            goTo( 0,-5,4*size,0,1 )
+            goTo( 0,0,4*size,0,1 )
+        else
+            goTo( 0,0,4*size,0,1 )
+            goTo( 0,-5,4*size,0,1 )
+            goTo( 0,-5,8,0,1 )
+            goTo( 1,-5,8,0,1 )
+            goTo( 1,0,8,0,1 )
+            goTo( 0,0,8,0,1 )
+        end
+    end
+elseif area=="5b" then
+    xPos,zPos = 0,10
+    function goback(mode)
+        if mode then
+            goTo( 1,0,10,0,1 )
+            goTo( 1,-6,10,0,1 )
+            goTo( 0,-6,10,0,1 )
+            goTo( 0,-6,5*size,0,1 )
+            goTo( 0,0,5*size,0,1 )
+        else
+            goTo( 0,0,5*size,0,1 )
+            goTo( 0,-6,5*size,0,1 )
+            goTo( 0,-6,10,0,1 )
+            goTo( 1,-6,10,0,1 )
+            goTo( 1,0,10,0,1 )
+            goTo( 0,0,10,0,1 )
+        end
+    end
+elseif area=="5c" then
+    xPos,zPos = 3,10
+    function goback(mode)
+        if mode then
+            goTo( 4,0,10,0,1 )
+            goTo( 4,-6,10,0,1 )
+            goTo( 3,-6,10,0,1 )
+            goTo( 3,-6,5*size+4,0,1 )
+            goTo( size,-6,5*size+4,0,1 )
+            goTo( size,0,5*size+4,0,1 )
+            goTo( size,0,5*size,0,1 )
+        else
+            goTo( size,0,5*size,0,1 )
+            goTo( size,0,5*size+4,0,1 )
+            goTo( size,-6,5*size+4,0,1 )
+            goTo( 3,-6,5*size+4,0,1 )
+            goTo( 3,-6,10,0,1 )
+            goTo( 4,-6,10,0,1 )
+            goTo( 4,0,10,0,1 )
+            goTo( 3,0,10,0,1 )
+        end
+    end
+elseif area=="5d" then
+    xPos,zPos = 3,8
+    function goback(mode)
+        if mode then
+            goTo( 4,0,8,0,1 )
+            goTo( 4,-5,8,0,1 )
+            goTo( 3,-5,8,0,1 )
+            goTo( 3,-5,4*size+3,0,1 )
+            goTo( size,-5,4*size+3,0,1 )
+            goTo( size,0,4*size+3,0,1 )
+            goTo( size,0,4*size,0,1 )
+        else
+            goTo( size,0,4*size,0,1 )
+            goTo( size,0,4*size+3,0,1 )
+            goTo( size,-5,4*size+3,0,1 )
+            goTo( 3,-5,4*size+3,0,1 )
+            goTo( 3,-5,8,0,1 )
+            goTo( 4,-5,8,0,1 )
+            goTo( 4,0,8,0,1 )
+            goTo( 3,0,8,0,1 )
+        end
+    end
+elseif area=="6a" then
+    xPos,zPos = 6,8
+    function goback(mode)
+        if mode then
+            goTo( 7,0,8,0,1 )
+            goTo( 7,-5,8,0,1 )
+            goTo( 6,-5,8,0,1 )
+            goTo( 6,-5,4*size+2,0,1 )
+            goTo( 2*size,-5,4*size+2,0,1 )
+            goTo( 2*size,0,4*size+2,0,1 )
+            goTo( 2*size,0,4*size,0,1 )
+        else
+            goTo( 2*size,0,4*size,0,1 )
+            goTo( 2*size,0,4*size+2,0,1 )
+            goTo( 2*size,-5,4*size+2,0,1 )
+            goTo( 6,-5,4*size+2,0,1 )
+            goTo( 6,-5,8,0,1 )
+            goTo( 7,-5,8,0,1 )
+            goTo( 7,0,8,0,1 )
+            goTo( 6,0,8,0,1 )
+        end
+    end
+elseif area=="6b" then
+    xPos,zPos = 6,10
+    function goback(mode)
+        if mode then
+            goTo( 7,0,10,0,1 )
+            goTo( 7,-6,10,0,1 )
+            goTo( 6,-6,10,0,1 )
+            goTo( 6,-6,5*size+3,0,1 )
+            goTo( 2*size,-6,5*size+3,0,1 )
+            goTo( 2*size,0,5*size+3,0,1 )
+            goTo( 2*size,0,5*size,0,1 )
+        else
+            goTo( 2*size,0,5*size,0,1 )
+            goTo( 2*size,0,5*size+3,0,1 )
+            goTo( 2*size,-6,5*size+3,0,1 )
+            goTo( 6,-6,5*size+3,0,1 )
+            goTo( 6,-6,10,0,1 )
+            goTo( 7,-6,10,0,1 )
+            goTo( 7,0,10,0,1 )
+            goTo( 6,0,10,0,1 )
+        end
+    end
+elseif area=="6c" then
+    xPos,zPos = 9,10
+    function goback(mode)
+        if mode then
+            goTo( 10,0,10,0,1 )
+            goTo( 10,-6,10,0,1 )
+            goTo( 9,-6,10,0,1 )
+            goTo( 9,-6,5*size+2,0,1 )
+            goTo( 3*size,-6,5*size+2,0,1 )
+            goTo( 3*size,0,5*size+2,0,1 )
+            goTo( 3*size,0,5*size,0,1 )
+        else
+            goTo( 3*size,0,5*size,0,1 )
+            goTo( 3*size,0,5*size+2,0,1 )
+            goTo( 3*size,-6,5*size+2,0,1 )
+            goTo( 9,-6,5*size+2,0,1 )
+            goTo( 9,-6,10,0,1 )
+            goTo( 10,-6,10,0,1 )
+            goTo( 10,0,10,0,1 )
+            goTo( 9,0,10,0,1 )
+        end
+    end
+elseif area=="6d" then
+    xPos,zPos = 9,8
+    function goback(mode)
+        if mode then
+            goTo( 9,-5,8,0,1 )
+            goTo( 9,-5,4*size+1,0,1 )
+            goTo( 3*size,-5,4*size+1,0,1 )
+            goTo( 3*size,0,4*size+1,0,1 )
+            goTo( 3*size,0,4*size,0,1 )
+        else
+            goTo( 3*size,0,4*size,0,1 )
+            goTo( 3*size,0,4*size+1,0,1 )
+            goTo( 3*size,-5,4*size+1,0,1 )
+            goTo( 9,-5,4*size+1,0,1 )
+            goTo( 9,-5,8,0,1 )
+            goTo( 9,0,8,0,1 )
+        end
+    end
+elseif area=="7a" then
+    xPos,zPos = 12,8
+    function goback(mode)
+        if mode then
+            goTo( 12,-5,8,0,1 )
+            goTo( 12,-5,4*size,0,1 )
+            goTo( 4*size,-5,4*size,0,1 )
+            goTo( 4*size,0,4*size,0,1 )
+        else
+            goTo( 4*size,0,4*size,0,1 )
+            goTo( 4*size,-5,4*size,0,1 )
+            goTo( 12,-5,4*size,0,1 )
+            goTo( 12,-5,8,0,1 )
+            goTo( 12,0,8,0,1 )
+        end
+    end
+elseif area=="7b" then
+    xPos,zPos = 12,10
+    function goback(mode)
+        if mode then
+            goTo( 13,0,10,0,1 )
+            goTo( 13,-6,10,0,1 )
+            goTo( 12,-6,10,0,1 )
+            goTo( 12,-6,5*size+1,0,1 )
+            goTo( 4*size,-6,5*size+1,0,1 )
+            goTo( 4*size,0,5*size+1,0,1 )
+            goTo( 4*size,0,5*size,0,1 )
+        else
+            goTo( 4*size,0,5*size,0,1 )
+            goTo( 4*size,0,5*size+1,0,1 )
+            goTo( 4*size,-6,5*size+1,0,1 )
+            goTo( 12,-6,5*size+1,0,1 )
+            goTo( 12,-6,10,0,1 )
+            goTo( 13,-6,10,0,1 )
+            goTo( 13,0,10,0,1 )
+            goTo( 12,0,10,0,1 )
+        end
+    end
+elseif area=="7c" then
+    xPos,zPos = 15,10
+    function goback(mode)
+        if mode then
+            goTo( 15,-6,10,0,1 )
+            goTo( 15,-6,5*size,0,1 )
+            goTo( 5*size,-6,5*size,0,1 )
+            goTo( 5*size,0,5*size,0,1 )
+        else
+            goTo( 5*size,0,5*size,0,1 )
+            goTo( 5*size,-6,5*size,0,1 )
+            goTo( 15,-6,5*size,0,1 )
+            goTo( 15,-6,10,0,1 )
+            goTo( 15,0,10,0,1 )
+        end
+    end
+elseif area=="7d" then
+    xPos,zPos = 15,8
+    function goback(mode)
+        if mode then
+            goTo( 15,-6,8,0,1 )
+            goTo( 5*size,-6,8,0,1 )
+            goTo( 5*size,-6,4*size,0,1 )
+            goTo( 5*size,0,4*size,0,1 )
+        else
+            goTo( 5*size,0,4*size,0,1 )
+            goTo( 5*size,-6,4*size,0,1 )
+            goTo( 5*size,-6,8,0,1 )
+            goTo( 15,-6,8,0,1 )
+            goTo( 15,0,8,0,1 )
+        end
+    end
+elseif area=="8a" then
+    xPos,zPos = 12,4
+    function goback(mode)
+        if mode then
+            goTo( 14,0,4,0,1 )
+            goTo( 14,0,5,0,1 )
+            goTo( 14,-4,5,0,1 )
+            goTo( 14,-4,4,0,1 )
+            goTo( 4*size,-4,4,0,1 )
+            goTo( 4*size,-4,2*size,0,1 )
+            goTo( 4*size,0,2*size,0,1 )
+        else
+            goTo( 4*size,0,2*size,0,1 )
+            goTo( 4*size,-4,2*size,0,1 )
+            goTo( 4*size,-4,4,0,1 )
+            goTo( 14,-4,4,0,1 )
+            goTo( 14,-4,5,0,1 )
+            goTo( 14,0,5,0,1 )
+            goTo( 14,0,4,0,1 )
+            goTo( 12,0,4,0,1 )
+        end
+    end
+elseif area=="8b" then
+    xPos,zPos = 12,6
+    function goback(mode)
+        if mode then
+            goTo( 14,0,6,0,1 )
+            goTo( 14,0,7,0,1 )
+            goTo( 14,-5,7,0,1 )
+            goTo( 14,-5,6,0,1 )
+            goTo( 4*size,-5,6,0,1 )
+            goTo( 4*size,-5,3*size,0,1 )
+            goTo( 4*size,0,3*size,0,1 )
+        else
+            goTo( 4*size,0,3*size,0,1 )
+            goTo( 4*size,-5,3*size,0,1 )
+            goTo( 4*size,-5,6,0,1 )
+            goTo( 14,-5,6,0,1 )
+            goTo( 14,-5,7,0,1 )
+            goTo( 14,0,7,0,1 )
+            goTo( 14,0,6,0,1 )
+            goTo( 12,0,6,0,1 )
+        end
+    end
+elseif area=="8c" then
+    xPos,zPos = 15,6
+    function goback(mode)
+        if mode then
+            goTo( 17,0,6,0,1 )
+            goTo( 17,0,7,0,1 )
+            goTo( 17,-6,7,0,1 )
+            goTo( 17,-6,6,0,1 )
+            goTo( 5*size+1,-6,6,0,1 )
+            goTo( 5*size+1,-6,3*size,0,1 )
+            goTo( 5*size+1,0,3*size,0,1 )
+            goTo( 5*size,0,3*size,0,1 )
+        else
+            goTo( 5*size,0,3*size,0,1 )
+            goTo( 5*size+1,0,3*size,0,1 )
+            goTo( 5*size+1,-6,3*size,0,1 )
+            goTo( 5*size+1,-6,6,0,1 )
+            goTo( 17,-6,6,0,1 )
+            goTo( 17,-6,7,0,1 )
+            goTo( 17,0,7,0,1 )
+            goTo( 17,0,6,0,1 )
+            goTo( 15,0,6,0,1 )
+        end
+    end
+elseif area=="8d" then
+    xPos,zPos = 15,4
+    function goback(mode)
+        if mode then
+            goTo( 17,0,4,0,1 )
+            goTo( 17,0,5,0,1 )
+            goTo( 17,-5,5,0,1 )
+            goTo( 17,-5,4,0,1 )
+            goTo( 5*size,-5,4,0,1 )
+            goTo( 5*size,-5,2*size,0,1 )
+            goTo( 5*size,0,2*size,0,1 )
+        else
+            goTo( 5*size,0,2*size,0,1 )
+            goTo( 5*size,-5,2*size,0,1 )
+            goTo( 5*size,-5,4,0,1 )
+            goTo( 17,-5,4,0,1 )
+            goTo( 17,-5,5,0,1 )
+            goTo( 17,0,5,0,1 )
+            goTo( 17,0,4,0,1 )
+            goTo( 15,0,4,0,1 )
+        end
+    end
+elseif area=="9a" then
+    xPos,zPos = 12,0
+    function goback(mode)
+        if mode then
+            goTo( 14,0,0,0,1 )
+            goTo( 14,0,1,0,1 )
+            goTo( 14,-3,1,0,1 )
+            goTo( 14,-3,0,0,1 )
+            goTo( 4*size,-3,0,0,1 )
+            goTo( 4*size,0,0,0,1 )
+        else
+            goTo( 4*size,0,0,0,1 )
+            goTo( 4*size,-3,0,0,1 )
+            goTo( 14,-3,0,0,1 )
+            goTo( 14,-3,1,0,1 )
+            goTo( 14,0,1,0,1 )
+            goTo( 14,0,0,0,1 )
+            goTo( 12,0,0,0,1 )
+        end
+    end
+elseif area=="9b" then
+    xPos,zPos = 12,2
+    function goback(mode)
+        if mode then
+            goTo( 14,0,2,0,1 )
+            goTo( 14,0,3,0,1 )
+            goTo( 14,-3,3,0,1 )
+            goTo( 14,-3,2,0,1 )
+            goTo( 4*size,-3,2,0,1 )
+            goTo( 4*size,-3,size,0,1 )
+            goTo( 4*size,0,size,0,1 )
+        else
+            goTo( 4*size,0,size,0,1 )
+            goTo( 4*size,-3,size,0,1 )
+            goTo( 4*size,-3,2,0,1 )
+            goTo( 14,-3,2,0,1 )
+            goTo( 14,-3,3,0,1 )
+            goTo( 14,0,3,0,1 )
+            goTo( 14,0,2,0,1 )
+            goTo( 12,0,2,0,1 )
+        end
+    end
+elseif area=="9c" then
+    xPos,zPos = 15,2
+    function goback(mode)
+        if mode then
+            goTo( 17,0,2,0,1 )
+            goTo( 17,0,3,0,1 )
+            goTo( 17,-4,3,0,1 )
+            goTo( 17,-4,2,0,1 )
+            goTo( 5*size,-4,2,0,1 )
+            goTo( 5*size,-4,size,0,1 )
+            goTo( 5*size,0,size,0,1 )
+        else
+            goTo( 5*size,0,size,0,1 )
+            goTo( 5*size,-4,size,0,1 )
+            goTo( 5*size,-4,2,0,1 )
+            goTo( 17,-4,2,0,1 )
+            goTo( 17,-4,3,0,1 )
+            goTo( 17,0,3,0,1 )
+            goTo( 17,0,2,0,1 )
+            goTo( 15,0,2,0,1 )
+        end
+    end
+elseif area=="9d" then
+    xPos,zPos = 15,0
+    function goback(mode)
+        if mode then
+            goTo( 17,0,0,0,1 )
+            goTo( 17,0,1,0,1 )
+            goTo( 17,-4,1,0,1 )
+            goTo( 17,-4,0,0,1 )
+            goTo( 5*size,-4,0,0,1 )
+            goTo( 5*size,0,0,0,1 )
+        else
+            goTo( 5*size,0,0,0,1 )
+            goTo( 5*size,-4,0,0,1 )
+            goTo( 17,-4,0,0,1 )
+            goTo( 17,-4,1,0,1 )
+            goTo( 17,0,1,0,1 )
+            goTo( 17,0,0,0,1 )
+            goTo( 15,0,0,0,1 )
+        end
+    end
+end
+
+
+local FuelLimit = 0
+if turtle.getFuelLimit() > 20000 then
+    FuelLimit = turtle.getFuelLimit()/2
+else
+    FuelLimit = 20000
+end
+local x0,z0 = xPos/3*size,zPos/2*size
+local iempty = 16 --海龟在卸货后的空物品栏数
+local depth = 0 --初始点深度值，每向下移动一格深度加一
+local totalunloaded = 0
+local xDir,zDir = 0,1
+local whitelist = {"coal","coal_block","gold_ore","iron_ore","diamond","emerald","dye","obsidian","quartz","gold_nugget"}
+
+local function putTogether()
+    local function selectSlot(slot,mode)
+        if mode==1 then
+            for n=1,slot-1 do
+                if turtle.getItemCount(slot-n) > 0 then
+                    turtle.select(slot-n)
+                    return slot-n
+                end
+            end
+        else
+            for n=slot+1,16 do
+                if turtle.getItemCount(n) == 0 then
+                    return n
+                end
+            end
+        end
+        return false
+    end
+    local m=selectSlot(0)            --若物品栏全满，m=false,n=16，若全空，m=1,n=false
+    local n=selectSlot(17,1)
+    while m and n and m<n do
+        turtle.transferTo(m)
+        m=selectSlot(m)
+        n=selectSlot(n,1)
+    end
+    turtle.select(1)
+    return n and 16-n or 17-m    --a7新增，若n存在，则返回16-n，若n不存在则输出17-m(实际为16)
+end
+local function refuel( ammount )
+    local fuelLevel = turtle.getFuelLevel()
+    if fuelLevel == "unlimited" then
+        return true
+    end
+    local fueled = true
+    local needed = ammount or (xPos + zPos + depth + 4*size) --a7新增
+    if fuelLevel < needed then
+        fueled = false
+        for n=1,16 do
+            if turtle.getItemCount(17-n) > 0 then
+                turtle.select(17-n)
+                if turtle.refuel(0) then
+                    while turtle.getItemCount(17-n) > 0 and turtle.getFuelLevel() < needed do
+                        turtle.refuel(1)
+                    end
+                    if turtle.getFuelLevel() >= needed then
+                        local i=64
+                        for n=n,16 do
+                            local nCount = turtle.getItemCount(17-n)
+                            if nCount>0 then
+                                local data = turtle.getItemDetail(17-n)
+                                if data.name=="minecraft:coal" then
+                                    turtle.select(17-n)
+                                    if nCount<i then
+                                        turtle.refuel(nCount)
+                                        i = i-nCount
+                                    else
+                                        turtle.refuel(i)
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        fueled = true
+                        break
+                    end
+                end
+            end
+        end
+        putTogether()
+    end
+    return fueled
+end
+local function refuel2( ammount )
+    local fuelLevel = turtle.getFuelLevel()
+    if fuelLevel == "unlimited" then
+        return true
+    end
+    if ammount > fuelLevel then
+        local i = math.floor((ammount-turtle.getFuelLevel())/80)
+        for n=1,16 do
+            local nCount = turtle.getItemCount(n)
+            if nCount>0 then
+                local data = turtle.getItemDetail(n)
+                if data.name=="minecraft:coal" then
+                    turtle.select(n)
+                    if nCount<i then
+                        turtle.refuel(nCount)
+                        i = i-nCount
+                    else
+                        turtle.refuel(i)
+                        break
+                    end
+                end
+            end
+        end
+    end
+    if turtle.getFuelLevel() <= ammount-800 then
+        for n=1,16 do
+            if turtle.getItemCount(n)>0 then
+                turtle.select(n)
+                if turtle.refuel(0) then
+                    while turtle.getItemCount(n) > 0 do
+                        turtle.refuel(1)
+                        if turtle.getFuelLevel() > ammount-800 then
+                            turtle.select(1)
+                            return
+                        end
+                    end
+                end
+            end
+        end
+    end
+    turtle.select(1)
+end
+
+local function turnLeft()
+    turtle.turnLeft()
+    xDir, zDir = -zDir, xDir
+end
+
+local function turnRight()
+    turtle.turnRight()
+    xDir, zDir = zDir, -xDir
+end
+local function collect()
+    local bFull = true
+    for n=1,16 do
+        local nCount = turtle.getItemCount(n)
+        if nCount == 0 then
+            bFull = false
+            break  --a7新增
+        end
+    end
+    if bFull then
+        local i=0
+        for n=1,16 do
+            local nCount = turtle.getItemCount(n)
+            if nCount > 0 then
+                local data = turtle.getItemDetail(n)
+                local check = false
+                for key,value in ipairs( whitelist ) do
+                    if string.sub(data.name,11) == value then
+                        check = true
+                        break
+                    end
+                end
+                if not check then
+                    turtle.select(n)       --a7新增
+                    turtle.drop()
+                    i=i+1
+                end
+            end
+        end
+        putTogether()
+        if i<iempty then
+            iempty=i
+            if iempty<3 then
+                return false
+            end
+        end
+    end
+    return true
+end
+function goTo( x, y, z, xd, zd )
+    while depth > y do
+        if turtle.up() then
+            depth = depth - 1
+        elseif turtle.digUp() or turtle.attackUp() then
+        else
+            sleep( 0.5 )
+        end
+    end
+
+    if xPos > x then
+        while xDir ~= -1 do
+            turnLeft()
+        end
+        while xPos > x do
+            if turtle.forward() then
+                xPos = xPos - 1
+            elseif turtle.dig() or turtle.attack() then
+            else
+                sleep( 0.5 )
+            end
+        end
+    elseif xPos < x then
+        while xDir ~= 1 do
+            turnLeft()
+        end
+        while xPos < x do
+            if turtle.forward() then
+                xPos = xPos + 1
+            elseif turtle.dig() or turtle.attack() then
+            else
+                sleep( 0.5 )
+            end
+        end
+    end
+    
+    if zPos > z then
+        while zDir ~= -1 do
+            turnLeft()
+        end
+        while zPos > z do
+            if turtle.forward() then
+                zPos = zPos - 1
+            elseif turtle.dig() or turtle.attack() then
+            else
+                sleep( 0.5 )
+            end
+        end
+    elseif zPos < z then
+        while zDir ~= 1 do
+            turnLeft()
+        end
+        while zPos < z do
+            if turtle.forward() then
+                zPos = zPos + 1
+            elseif turtle.dig() or turtle.attack() then
+            else
+                sleep( 0.5 )
+            end
+        end    
+    end 
+    while depth < y do
+        if turtle.down() then
+            depth = depth + 1
+        elseif turtle.digDown() or turtle.attackDown() then
+        else
+            sleep( 0.5 )
+        end
+    end
+    while zDir ~= zd or xDir ~= xd do
+        turnLeft()
+    end
+end
+
+local function unload()
+    print( "Unloading items..." )
+    local sign = true
+    local has_block, data = turtle.inspect()
+    while not(has_block and data.name=="minecraft:chest") do
+        if sign then
+            print( "A box needs to be placed in front of the turtle" )
+            sign = false
+        end
+        sleep(5.0)
+        has_block, data = turtle.inspect()
+    end
+    refuel2( FuelLimit )
+    local unloaded = 0
+    for n=1,16 do
+        local nCount = turtle.getItemCount(n)
+        if nCount > 0 then
+            local data = turtle.getItemDetail(n)
+            local check = false
+            for key,value in ipairs( whitelist ) do
+                if string.sub(data.name,11) == value then
+                    check = true
+                    break
+                end
+            end
+            if check then
+                local sign = true
+                turtle.select(n)
+                while true do
+                    if turtle.drop() then
+                        if turtle.getItemCount(n) >0 then
+                            if sign then
+                                print( "The minerals in the slot are not fully unloaded..." )
+                            end
+                            sign = false
+                            sleep( 2.0 )
+                        else
+                            if not sign then
+                                print( "All minerals in this slot are unloaded" )
+                            end
+                            unloaded = unloaded + nCount
+                            break
+                        end
+                    elseif turtle.getItemCount(n) > 0 then
+                        if sign then
+                            print( "Waiting for an empty container slot..." )
+                        end
+                        sign = false
+                        sleep( 2.0 )
+                    else
+                        print( "This is an empty slot!" )
+                        break
+                    end
+                end
+            end
+        end
+    end
+    turnRight()
+    for n=1,16 do
+        local nCount = turtle.getItemCount(n)
+        if nCount > 0 then
+            turtle.select(n)
+            while true do
+                if turtle.drop() then
+                    if turtle.getItemCount(n) > 0 then
+                        sleep( 2.0 )
+                    else
+                        break
+                    end
+                elseif turtle.getItemCount(n) > 0 then
+                    sleep( 2.0 )
+                else
+                    print( "This is an empty slot!" )
+                    break
+                end
+            end
+        end
+    end
+    turnLeft()
+    turtle.select(1)
+    totalunloaded = totalunloaded+unloaded
+    iempty=16
+    print( "Mined "..unloaded.." items." )
+end
+
+local function returnSupplies()
+    local x,y,z,xd,zd = xPos,depth,zPos,xDir,zDir
+    print( "Returning to surface, depth= "..depth)
+    goback()
+    local fuelNeeded = 2*(x+y+z) + 8*size   --a7新增
+    if not refuel( fuelNeeded ) then
+        unload()
+        print( "Waiting for fuel" )
+        while not refuel( fuelNeeded ) do
+            os.pullEvent( "turtle_inventory" )
+        end
+    else
+        unload()
+    end
+    print( "Resuming mining..." )
+    goback(true)
+    goTo( x,y,z,xd,zd )
+end
+
+local function tryForwards()
+    turtle.digUp()
+    if not collect() then
+        returnSupplies()
+    end
+    turtle.digDown()
+    if not collect() then
+        returnSupplies()
+    end
+    if not refuel() then
+        print( "Not enough Fuel" )
+        returnSupplies()
+    end
+    while not turtle.forward() do
+        if turtle.detect() then
+            if turtle.dig() then
+                if not collect() then
+                    returnSupplies()
+                end
+            else
+                return false
+            end
+        elseif turtle.attack() then
+            if not collect() then
+                returnSupplies()
+            end
+        else
+            sleep( 0.5 )
+        end
+    end
+    xPos = xPos + xDir
+    zPos = zPos + zDir
+    return true
+end
+
+local function tryDown()
+    if not refuel() then
+        print( "Not enough Fuel" )
+        returnSupplies()
+    end
+    while not turtle.down() do
+        if turtle.detectDown() then
+            if turtle.digDown() then
+                if not collect() then
+                    returnSupplies()
+                end
+            else
+                return false
+            end
+        elseif turtle.attackDown() then
+            if not collect() then
+                returnSupplies()
+            end
+        else
+            sleep( 0.5 )
+        end
+    end
+    depth = depth + 1
+    if math.fmod( depth, 10 ) == 0 then
+        print( "Descended "..depth.." metres." )
+    end
+    return true
+end
+local function Equipmentdetection()
+    local i = 0
+    for n=1,16 do
+        local nCount = turtle.getItemCount(n)
+        if nCount == 0 then
+            turtle.select(n)
+            i = n
+            break
+        end
+    end
+    if i<1 then
+        print("Requires an empty slot for equipment detection")
+        turtle.select(1)
+        return false
+    else
+        turtle.equipLeft()
+        local data = turtle.getItemDetail(i)
+        if data then
+            if data.name~="minecraft:diamond_pickaxe" then
+                print("The left side of the turtle must be equipped with a diamond pickaxe or not equipped with anything,now unequip what is not a diamond pickaxe")
+                return Equipmentdetection()
+            else
+                turtle.equipLeft()
+                print("A diamond pickaxe that meets the mining requirements has been detected and will now mine")
+            end
+        else
+            turtle.equipRight()
+            local data = turtle.getItemDetail(i)
+            if not data or data.name~="minecraft:diamond_pickaxe" then
+                print("The turtle must be equipped with at least one diamond pickaxe")
+                turtle.select(1)
+                return false
+            else
+                turtle.equipRight()
+                print("A diamond pickaxe that meets the mining requirements has been detected and will now mine")
+            end
+        end
+    end
+    turtle.select(1)
+    return true
+end
+if not Equipmentdetection() then
+    return
+end
+if not refuel() then
+    print( "Out of Fuel" )
+    return
+end
+refuel2( 10000 )
+print( "Excavating..." )
+
+goback(true)
+
+for n=1,goDownHeight do      --a8新增
+    if not tryDown() then
+        for n=1,n-1 do
+            turtle.up()
+        end
+        return
+    end
+end
+
+local alternate = 0
+local done = false
+local layer = 0         --对a7的bug修复      --海龟当前挖掘的平面数
+while not done do
+    layer = layer+1     --对a7的bug修复
+    for n=1,size do
+        for m=1,size-1 do
+            if not tryForwards() then
+                done = true
+                break
+            end
+        end
+        if done then
+            break
+        end
+        if n<size then
+            if math.fmod(n + alternate,2) == 0 then
+                turnLeft()
+                if not tryForwards() then
+                    done = true
+                    break
+                end
+                turnLeft()
+            else
+                turnRight()
+                if not tryForwards() then
+                    done = true
+                    break
+                end
+                turnRight()
+            end
+        end
+    end
+    if done then
+        break
+    end
+    turtle.digUp()
+    if not collect() then
+        returnSupplies()
+    end
+    if size > 1 then
+        if math.fmod(size,2) == 0 then
+            turnRight()
+        else
+            if alternate == 0 then
+                turnLeft()
+            else
+                turnRight()
+            end
+            alternate = 1 - alternate
+        end
+    end
+    
+    if not (tryDown() and tryDown()) then
+        break
+    end
+    tryDown()
+    if depth>limit+1 then
+        break
+    end
+end
+
+collect()
+print( "Returning to surface, depth= "..depth)
+
+-- Return to where we started
+
+local s=size-1 --a7新增
+if done then
+    if math.fmod(size,2) == 0 then
+        if math.fmod(layer,4) == 1 then
+            goTo( x0,depth,zPos,0,1 )
+            goTo( x0,depth,z0,0,1 )
+        elseif math.fmod(layer,4) == 2 then
+            goTo( xPos,depth,z0,0,1 )
+            goTo( s+x0,depth,z0,0,1 )
+        elseif math.fmod(layer,4) == 3 then
+            goTo( s+x0,depth,zPos,0,1 )
+            goTo( s+x0,depth,s+z0,0,1 )
+        else
+            goTo( xPos,depth,s+z0,0,1 )
+            goTo( x0,depth,s+z0,0,1 )
+        end
+    else
+        if alternate == 0 then
+            goTo( x0,depth,zPos,0,1 )
+            goTo( x0,depth,z0,0,1 )
+        else
+            goTo( xPos,depth,s+z0,0,1 )
+            goTo( s+x0,depth,s+z0,0,1 )
+        end
+    end
+end
+goback()
+unload()
+print( "Mined "..totalunloaded.." items total." )
