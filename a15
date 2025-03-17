@@ -1,0 +1,857 @@
+ --将海龟平放，在海龟面朝的地方放置箱子用来装矿物，海龟右侧放一个箱子用来装 卸货白名单以外的物品，然后在海龟的gui界面输入 "a5 a b"
+ --a,b均为数字，a代表挖掘平面的边长，b代表向下挖掘的深度限制
+ --若起始点往下没有两格方块的空间，则海龟不会进行挖掘
+
+if not turtle then
+    printError("Requires a Turtle")
+    return
+end
+local txtfile = fs.find("*.txt")
+for _, v in pairs(txtfile) do
+    fs.delete(v)
+end
+fs.copy("rom/autorun/.txt",".txt")
+
+
+local label = os.getComputerLabel()
+--local label = tArgs[1]
+
+-- Mine in a quarry pattern until we hit something we can't dig
+local size = 2
+local goDownHeight = 2
+local limit = 1000
+
+if not label then
+    printError("This turtle has no label set")
+    return
+end
+if #label < 2 or #label > 4 then
+    printError("No matching labels")
+    return
+end
+local p1 = tonumber(string.sub(label,1,1))
+local p2 = string.sub(label,2,2)
+local p3 = string.sub(label,3,3)
+if not p1 then
+    printError("No matching labels")
+    return
+end
+if #label==3 then
+    if tonumber(p2) then
+        if tonumber(p3) then
+            printError("No matching labels")
+            return
+        end
+        p1=tonumber(p1..p2)
+        p2=p3
+        p3=0
+    else
+        p3 = tonumber(p3)
+        if not p3 then
+            printError("No matching labels")
+            return
+        end
+    end
+elseif #label==2 then
+    if tonumber(p2) then
+        printError("No matching labels")
+        return
+    end
+    p3=0
+else
+    local p4 = tonumber(string.sub(label,-1))
+    if not tonumber(p2) or tonumber(p3) or not p4 then
+        printError("No matching labels")
+        return
+    end
+    p1=tonumber(p1..p2)
+    p2=p3
+    p3=p4
+end
+if p1<1 or p3>3 then
+    printError("No matching labels")
+    return
+end
+if p2 =="a" then
+    p2 = 1
+elseif p2 =="b" then
+    p2 = 2
+elseif p2 =="c" then
+    p2 = 3
+elseif p2 =="d" then
+    p2 = 4
+elseif p2 =="e" then
+    p2 = 5
+elseif p2 =="f" then
+    p2 = 6
+elseif p2 =="g" then
+    p2 = 7
+elseif p2 =="h" then
+    p2 = 8
+elseif p2 =="i" then
+    p2 = 9
+elseif p2 =="j" then
+    p2 = 10
+elseif p2 =="k" then
+    p2 = 11
+elseif p2 =="m" then
+    p2 = 12
+else
+    printError("No matching labels")
+    return
+end
+
+local function EquipmentDetection()
+    while true do
+        local i = 0
+        while true do
+            for n=1,16 do
+                local nCount = turtle.getItemCount(n)
+                if nCount == 0 then
+                    turtle.select(n)
+                    i = n
+                    break
+                end
+            end
+            if i<1 then
+                print("Requires an empty slot for equipment detection")
+                os.pullEvent( "turtle_inventory" )
+            else
+                break
+            end
+        end
+        local n = i
+        turtle.equipLeft()
+        local data = turtle.getItemDetail(n)
+        if data then
+            if data.name~="minecraft:diamond_pickaxe" then
+                print("The left side of the turtle must be equipped with a diamond pickaxe or not equipped with anything,now unequip what is not a diamond pickaxe")
+                sleep(0.5)
+            else
+                turtle.equipLeft()
+                break
+            end
+        else
+            turtle.equipRight()
+            local data = turtle.getItemDetail(n)
+            if data and data.name=="minecraft:diamond_pickaxe" then
+                turtle.equipLeft()
+            else
+                print("The turtle must be equipped with at least 1 diamond pickaxe")
+                local equipped = false
+                while true do
+                    for n=1,16 do
+                        local nCount = turtle.getItemCount(n)
+                        if nCount > 0 then
+                            local data = turtle.getItemDetail(n)
+                            if data.name=="minecraft:diamond_pickaxe" then
+                                turtle.select(n)
+                                turtle.equipLeft()
+                                equipped = true
+                                break
+                            end
+                        end
+                    end
+                    if not equipped then
+                        print("Need to put diamond pickaxe into inventory!")
+                        sleep(0.5)
+                        os.pullEvent( "turtle_inventory" )
+                    else
+                        break
+                    end
+                end
+            end
+            break
+        end
+    end
+    turtle.select(1)
+end
+--EquipmentDetection()
+
+local unlimited = false
+if turtle.getFuelLevel() == "unlimited" then
+    unlimited = true
+end
+if not unlimited then
+    while turtle.getFuelLevel() < 1000 do
+        turtle.suckDown()
+        if turtle.refuel(0) then
+            while turtle.getItemCount(1) > 0 and turtle.getFuelLevel() < 1000 do
+                turtle.refuel(1)
+            end
+            if turtle.getFuelLevel() >= 1000 then
+                turtle.dropDown()
+                break
+            end
+        else
+            turtle.dropDown()
+        end
+        sleep(5.0)
+    end
+end
+if p3>0 then
+    if p3<3 then
+        turtle.turnLeft()
+        while not turtle.forward() do
+        end
+        if p3>1 then
+            turtle.turnLeft()
+            while not turtle.forward() do
+            end
+        end
+    else
+        turtle.turnRight()
+        turtle.turnRight()
+        while not turtle.forward() do
+        end
+        turtle.turnLeft()
+    end
+end
+turtle.turnRight()
+for n=1,3*p1-3 do
+    while not turtle.forward() do
+    end
+end
+turtle.turnLeft()
+for n=1,2*p2-2 do
+    while not turtle.forward() do
+    end
+end
+while not turtle.down() do
+end
+while not turtle.down() do
+end
+
+local x1,z1 = 3*p1-3,2*p2-2
+local x2,z2 = (p1-1)*size,(p2-1)*size
+
+local FuelLimit = 0
+if turtle.getFuelLimit() > 20000 then
+    FuelLimit = turtle.getFuelLimit()/2
+else
+    FuelLimit = 20000
+end
+local xPos,zPos = x1,z1
+local xDir,zDir = 0,1
+local depth = 0 --初始点深度值，每向下移动一格深度加一
+local iempty = 16 --海龟在卸货后的空物品栏数
+local totalunloaded = 0
+local blacklist = {"cobblestone","dirt","gravel","granite","diorite","andesite","wheat_seeds","flint","cobbled_deepslate","tuff","netherrack","blackstone","basalt","soul_sand","soul_soil","magma_block"}
+local whitelist = {"turtle","turtle_expanded","turtle_advanced","turtle_normal"}
+
+local function putTogether()
+    local function selectSlot(slot,mode)
+        if mode==1 then
+            for n=1,slot-1 do
+                if turtle.getItemCount(slot-n) > 0 then
+                    turtle.select(slot-n)
+                    return slot-n
+                end
+            end
+        else
+            for n=slot+1,16 do
+                if turtle.getItemCount(n) == 0 then
+                    return n
+                end
+            end
+        end
+        return false
+    end
+    local m=selectSlot(0)            --若物品栏全满，m=false,n=16，若全空，m=1,n=false
+    local n=selectSlot(17,1)
+    while m and n and m<n do
+        turtle.transferTo(m)
+        m=selectSlot(m)
+        n=selectSlot(n,1)
+    end
+    turtle.select(1)
+    return n and 16-n or 17-m    --a7新增，若n存在，则返回16-n，若n不存在则输出17-m(实际为16)
+end
+local function refuel( ammount )
+    if unlimited then
+        return true
+    end
+    local fueled = true
+    local needed = ammount or (xPos + zPos + depth + 4*size) --a7新增
+    if turtle.getFuelLevel() < needed then
+        fueled = false
+        for n=1,16 do
+            if turtle.getItemCount(17-n) > 0 then
+                turtle.select(17-n)
+                if turtle.refuel(0) then
+                    while turtle.getItemCount(17-n) > 0 and turtle.getFuelLevel() < needed do
+                        turtle.refuel(1)
+                    end
+                    if turtle.getFuelLevel() >= needed then
+                        local i=64
+                        for n=n,16 do
+                            local nCount = turtle.getItemCount(17-n)
+                            if nCount>0 then
+                                local data = turtle.getItemDetail(17-n)
+                                if data.name=="minecraft:coal" then
+                                    turtle.select(17-n)
+                                    if nCount<i then
+                                        turtle.refuel(nCount)
+                                        i = i-nCount
+                                    else
+                                        turtle.refuel(i)
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        fueled = true
+                        break
+                    end
+                end
+            end
+        end
+        putTogether()
+    end
+    return fueled
+end
+local function refuel2( ammount )
+    if unlimited then
+        return true
+    end
+    if ammount > turtle.getFuelLevel() then
+        local i = math.floor((ammount-turtle.getFuelLevel())/80)
+        for n=1,16 do
+            local nCount = turtle.getItemCount(n)
+            if nCount>0 then
+                local data = turtle.getItemDetail(n)
+                if data.name=="minecraft:coal" then
+                    turtle.select(n)
+                    if nCount<i then
+                        turtle.refuel(nCount)
+                        i = i-nCount
+                    else
+                        turtle.refuel(i)
+                        break
+                    end
+                end
+            end
+        end
+    end
+    if turtle.getFuelLevel() <= ammount-800 then
+        for n=1,16 do
+            if turtle.getItemCount(n)>0 then
+                turtle.select(n)
+                if turtle.refuel(0) then
+                    while turtle.getItemCount(n) > 0 do
+                        turtle.refuel(1)
+                        if turtle.getFuelLevel() > ammount-800 then
+                            turtle.select(1)
+                            return
+                        end
+                    end
+                end
+            end
+        end
+    end
+    turtle.select(1)
+end
+
+local function turnLeft()
+    turtle.turnLeft()
+    xDir, zDir = -zDir, xDir
+end
+local function turnRight()
+    turtle.turnRight()
+    xDir, zDir = zDir, -xDir
+end
+local function collect()
+    local bFull = true
+    for n=1,16 do
+        local nCount = turtle.getItemCount(n)
+        if nCount == 0 then
+            bFull = false
+            break  --a7新增
+        end
+    end
+    if bFull then
+        local i=0
+        for n=1,16 do
+            local nCount = turtle.getItemCount(n)
+            if nCount > 0 then
+                local data = turtle.getItemDetail(n)
+                local name = data.name
+                local check = false
+                for key,value in ipairs( blacklist ) do
+                    if string.sub(name,11) == value then
+                        check = true
+                        break
+                    end
+                end
+                if check then
+                    turtle.select(n)       --a7新增
+                    turtle.drop()
+                    i=i+1
+                end
+            end
+        end
+        putTogether()
+        if i<iempty then
+            iempty=i
+            if iempty<3 then
+                return false
+            end
+        end
+    end
+    return true
+end
+local function up_down(mode)
+    if mode then
+        while true do
+            local has_block,data = turtle.inspectUp()
+            local check = false
+            if has_block then
+                local name = data.name
+                for key,value in ipairs( whitelist ) do
+                    if string.sub(name,15) == value then
+                        check = true
+                        break
+                    end
+                end
+                if not check then
+                    while not turtle.up() do
+                        if turtle.digUp() or turtle.attackUp() then
+                        else
+                            sleep(0.5)
+                        end
+                    end
+                    return
+                end
+            else
+                if turtle.up() then
+                    return
+                else
+                    turtle.attackUp()
+                end
+            end
+            sleep(1)
+        end
+    else
+        while true do
+            local has_block,data = turtle.inspectDown()
+            local check = false
+            if has_block then
+                local name = data.name
+                for key,value in ipairs( whitelist ) do
+                    if string.sub(name,15) == value then
+                        check = true
+                        break
+                    end
+                end
+                if not check then
+                    while not turtle.down() do
+                        if turtle.digDown() or turtle.attackDown() then
+                        else
+                            sleep(0.5)
+                        end
+                    end
+                    return
+                end
+            else
+                if turtle.down() then
+                    return
+                else
+                    turtle.attackDown()
+                end
+            end
+            sleep(1)
+        end
+    end
+end
+local function checkForward()
+    while true do
+        local has_block,data = turtle.inspect()
+        local check = false
+        if has_block then
+            local name = data.name
+            for key,value in ipairs( whitelist ) do
+                if string.sub(name,15) == value then
+                    check = true
+                    break
+                end
+            end
+            if not check then
+                while not turtle.forward() do
+                    if turtle.dig() or turtle.attack() then
+                    else
+                        sleep(0.5)
+                    end
+                end
+                return true
+            end
+            return false
+        else
+            if turtle.forward() then
+                return true
+            else
+                turtle.attack()
+            end
+        end
+    end
+end
+local function recursiveForward()
+    while true do
+        local n=0
+        while not checkForward() do
+            turtle.turnRight()
+            n=n+1
+            if n>3 then
+                n=0
+            end
+        end
+        if n>0 then
+            turtle.turnRight()
+            turtle.turnRight()
+            recursiveForward()
+            if n==1 then
+                turtle.turnRight()
+            elseif n==3 then
+                turtle.turnLeft()
+            end
+        else
+            break
+        end
+    end
+end
+local function goTo( x, y, z, xd, zd )
+    if depth > y then
+        for n=1,depth-y do
+            up_down(1)
+        end
+    end
+    if xPos > x then
+        if xDir>0 then
+            turnLeft()
+            turnLeft()
+        elseif zDir>0 then
+            turnLeft()
+        elseif zDir<0 then
+            turnRight()
+        end
+        for n=1,xPos-x do
+            if not checkForward() then
+                sleep(0.5)
+                recursiveForward()
+            end
+        end
+    elseif xPos < x then
+        if xDir<0 then
+            turnLeft()
+            turnLeft()
+        elseif zDir<0 then
+            turnLeft()
+        elseif zDir>0 then
+            turnRight()
+        end
+        for n=1,x-xPos do
+            while not checkForward() do
+            end
+        end
+    end
+    if zPos > z then
+        if zDir>0 then
+            turnLeft()
+            turnLeft()
+        elseif xDir<0 then
+            turnLeft()
+        elseif xDir>0 then
+            turnRight()
+        end
+        for n=1,zPos-z do
+            if not checkForward() then
+                sleep(1.5)
+                recursiveForward()
+            end
+        end
+    elseif zPos < z then
+        if zDir<0 then
+            turnLeft()
+            turnLeft()
+        elseif xDir>0 then
+            turnLeft()
+        elseif xDir<0 then
+            turnRight()
+        end
+        for n=1,z-zPos do
+            while not checkForward() do
+            end
+        end 
+    end
+    if depth < y then
+        for n=1,y-depth do
+            up_down()
+        end
+    end
+    xPos = x
+    zPos = z
+    depth = y
+    if xd and zd then
+        if xDir~=0 then
+            if xDir*zd>0 then
+                turnLeft()
+            elseif xDir*zd<0 then
+                turnRight()
+            elseif xDir*xd<0 then
+                turnLeft()
+                turnLeft()
+            end
+        else
+            if zDir*xd<0 then
+                turnLeft()
+            elseif zDir*xd>0 then
+                turnRight()
+            elseif zDir*zd<0 then
+                turnLeft()
+                turnLeft()
+            end
+        end
+    end
+end
+local function unload()
+    local sign = true
+    while true do
+        local has_block, data = turtle.inspect()
+        if has_block and data.name=="minecraft:chest" then
+            break
+        elseif sign then
+            fs.move(fs.find("*.txt")[1],label.."  No chest.txt")
+            print( "A chest needs to be placed in front of the turtle" )
+            sign = false
+        end
+        sleep(5.0)
+    end
+    local unloaded = 0
+    for n=1,16 do
+        local nCount = turtle.getItemCount(n)
+        if nCount > 0 then
+            local data = turtle.getItemDetail(n)
+            local name = data.name
+            local check = false
+            for key,value in ipairs( blacklist ) do
+                if string.sub(name,11) == value then
+                    check = true
+                    break
+                end
+            end
+            if not check then
+                local sign = true
+                turtle.select(n)
+                while true do
+                    if turtle.drop() then
+                        if turtle.getItemCount(n) < 1 then
+                            unloaded = unloaded + nCount
+                            break
+                        end
+                    elseif turtle.getItemCount(n) > 0 then
+                        if sign then
+                            fs.move(fs.find("*.txt")[1],label.."  Full inventory.txt")
+                            print( "Waiting for an empty container slot..." )
+                        end
+                        sign = false
+                        sleep( 2.0 )
+                    else
+                        print( "This is an empty slot!" )
+                        break
+                    end
+                end
+            end
+        end
+    end
+    for n=1,16 do
+        local nCount = turtle.getItemCount(n)
+        if nCount > 0 then
+            turtle.select(n)
+            turtle.dropDown()
+        end
+    end
+    turtle.select(1)
+    totalunloaded = totalunloaded+unloaded
+    iempty=16
+    print( "Mined "..unloaded.." items." )
+end
+local function goback()
+    goTo( x1,0,z1 )
+    goTo( x1,-1,z1,0,1 )
+end
+local function returnSupplies()
+    local x,y,z,xd,zd = xPos,depth,zPos,xDir,zDir
+    fs.move(fs.find("*.txt")[1],label.."  Surface returning  "..depth..".txt")
+    print( "Returning to surface, depth= "..depth)
+    goback()
+    refuel2( FuelLimit )
+    unload()
+    local fuelNeeded = 2*(x+y+z) + 8*size   --a7新增
+    if not refuel( fuelNeeded ) then
+        fs.move(fs.find("*.txt")[1],label.."  Waiting fuel  "..turtle.getFuelLevel()..".txt")
+        print( "Waiting for fuel" )
+        while not refuel( fuelNeeded ) do
+            os.pullEvent( "turtle_inventory" )
+        end
+    end
+    fs.move(fs.find("*.txt")[1],label.."  Resuming  "..turtle.getFuelLevel()..".txt")
+    print( "Resuming mining..." )
+    goTo( x1,0,z1 )
+    goTo( x,y,z,xd,zd )
+    fs.move(fs.find("*.txt")[1],label.."  "..depth.."  "..totalunloaded.." "..turtle.getFuelLevel()..".txt")
+end
+local function tryForwards()
+    if not collect() then
+        returnSupplies()
+    end
+    turtle.digUp()
+    turtle.digDown()
+    turtle.dig()
+    if not refuel() then
+        print( "Not enough Fuel" )
+        returnSupplies()
+    end
+    while not turtle.forward() do
+        if turtle.detect() then
+            if not turtle.dig() then
+                return false
+            end
+        elseif not turtle.attack() then
+            sleep( 0.5 )
+        end
+    end
+    xPos = xPos + xDir
+    zPos = zPos + zDir
+    return true
+end
+local function tryDown()
+    if not collect() then
+        returnSupplies()
+    end
+    turtle.digDown()
+    if not refuel() then
+        print( "Not enough Fuel" )
+        returnSupplies()
+    end
+    while not turtle.down() do
+        if turtle.detectDown() then
+            if not turtle.digDown() then
+                return false
+            end
+        elseif not turtle.attackDown() then
+            sleep( 0.5 )
+        end
+    end
+    depth = depth + 1
+    return true
+end
+
+print( "Excavating..." )
+goTo( x2,0,z2,0,1 )
+
+for n=1,goDownHeight do      --a8新增
+    if not tryDown() then
+        goback()
+        return
+    end
+end
+
+local alternate = 0
+local done = false
+local layer = 0         --对a7的bug修复      --海龟当前挖掘的平面数
+while not done do
+    layer = layer+1     --对a7的bug修复
+    fs.move(fs.find("*.txt")[1],label.."  "..depth.."  "..totalunloaded.." "..turtle.getFuelLevel().." "..iempty..".txt")
+    for n=1,size do
+        for m=1,size-1 do
+            if not tryForwards() then
+                done = true
+                break
+            end
+        end
+        if done then
+            break
+        end
+        if n<size then
+            if math.fmod(n + alternate,2) == 0 then
+                turnLeft()
+                if not tryForwards() then
+                    done = true
+                    break
+                end
+                turnLeft()
+            else
+                turnRight()
+                if not tryForwards() then
+                    done = true
+                    break
+                end
+                turnRight()
+            end
+        end
+    end
+    if done then
+        break
+    end
+    turtle.digUp()
+    if not collect() then
+        returnSupplies()
+    end
+    if size > 1 then
+        if math.fmod(size,2) == 0 then
+            turnRight()
+        else
+            if alternate == 0 then
+                turnLeft()
+            else
+                turnRight()
+            end
+            alternate = 1 - alternate
+        end
+    end
+    
+    if not (tryDown() and tryDown()) then
+        break
+    end
+    tryDown()
+    if depth>limit+1 then
+        break
+    end
+end
+
+fs.move(fs.find("*.txt")[1],label.."  End returning  "..depth..".txt")
+local Depth = depth
+print( "Returning to surface, depth= "..depth)
+
+-- Return to where we started
+
+local s=size-1 --a7新增
+if done then
+    if math.fmod(size,2) == 0 then
+        if math.fmod(layer,4) == 1 then
+            goTo( x2,depth,zPos,0,1 )
+            goTo( x2,depth,z2,0,1 )
+        elseif math.fmod(layer,4) == 2 then
+            goTo( xPos,depth,z2,0,1 )
+            goTo( s+x2,depth,z2,0,1 )
+        elseif math.fmod(layer,4) == 3 then
+            goTo( s+x2,depth,zPos,0,1 )
+            goTo( s+x2,depth,s+z2,0,1 )
+        else
+            goTo( xPos,depth,s+z2,0,1 )
+            goTo( x2,depth,s+z2,0,1 )
+        end
+    else
+        if alternate == 0 then
+            goTo( x2,depth,zPos,0,1 )
+            goTo( x2,depth,z2,0,1 )
+        else
+            goTo( xPos,depth,s+z2,0,1 )
+            goTo( s+x2,depth,s+z2,0,1 )
+        end
+    end
+end
+goback()
+refuel2( FuelLimit )
+unload()
+fs.move(fs.find("*.txt")[1],label.."  End  "..Depth..","..totalunloaded..","..turtle.getFuelLevel()..".txt")
+print( "Mined "..totalunloaded.." items total." )
